@@ -246,10 +246,8 @@ impl<const BUF_SIZE: usize> SolarXRClient<BUF_SIZE> {
         if let Ok(xdg_data_home) = env::var("XDG_DATA_HOME") {
             let xdg_data_home = PathBuf::from(xdg_data_home);
             socket_paths.push(xdg_data_home.join(SLIMEVR_DATA_NAME).join(SOCKET_FILE));
-        }else if let Some(home) = env::home_dir() {
-            let xdg_data_home = PathBuf::from(home)
-                .join(".local")
-                .join("share");
+        } else if let Some(home) = env::home_dir() {
+            let xdg_data_home = PathBuf::from(home).join(".local").join("share");
             socket_paths.push(xdg_data_home.join(SLIMEVR_DATA_NAME).join(SOCKET_FILE));
         }
 
