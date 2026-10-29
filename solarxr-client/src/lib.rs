@@ -9,11 +9,11 @@ use std::time::Duration;
 
 use solarxr_protocol::flatbuffers::{FlatBufferBuilder, WIPOffset};
 use solarxr_protocol::rpc::{
-    ChangeStayAlignedEnabledRequest, ChangeStayAlignedEnabledRequestArgs,
-    DetectStayAlignedRelaxedPoseRequest, DetectStayAlignedRelaxedPoseRequestArgs, ResetLifecycle,
+    ChangeStayAlignedSettingsRequest, ChangeStayAlignedSettingsRequestArgs, ResetLifecycle,
     ResetRequest, ResetRequestArgs, ResetStayAlignedRelaxedPoseRequest,
     ResetStayAlignedRelaxedPoseRequestArgs, ResetType, RpcMessage, RpcMessageHeader,
     RpcMessageHeaderArgs, SetPauseTrackingRequest, SetPauseTrackingRequestArgs,
+    StartStayAlignedPoseRecordingRequest, StartStayAlignedPoseRecordingRequestArgs,
     StayAlignedRelaxedPose, StayAlignedSettingsRequest, StayAlignedSettingsRequestArgs,
     TrackingPauseStateRequest, TrackingPauseStateRequestArgs, UserHeightRequest,
     UserHeightRequestArgs,
@@ -130,14 +130,17 @@ impl<const BUF_SIZE: usize> ClientState<BUF_SIZE> {
         let shared_buf = LazyCell::new(|| Arc::new(buf.to_vec()));
         if let Some(rpc_msgs) = bundle.rpc_msgs() {
             for msg in rpc_msgs {
-                trace!(
-                    "pumped message (transaction {}, reply {}): {:?}",
-                    msg.tx_id(),
-                    msg.reply_to(),
-                    msg.message_type()
-                );
-                let reply_id = msg.reply_to();
-                if reply_id == 0 {
+                if let Some(tx_id) = msg.tx_id() {
+                    trace!(
+                        "pumped message (transaction {}): {:?}",
+                        tx_id,
+                        msg.message_type()
+                    );
+                } else {
+                    trace!("pumped message: {:?}", msg.message_type());
+                }
+
+                let Some(reply_id) = msg.reply_to() else {
                     continue;
                 };
 
@@ -370,8 +373,8 @@ impl<const BUF_SIZE: usize> SolarXRClient<BUF_SIZE> {
             RpcMessageHeader::create(
                 &mut fbb,
                 &RpcMessageHeaderArgs {
-                    tx_id: transaction.id,
-                    reply_to: 0,
+                    tx_id: Some(transaction.id),
+                    reply_to: None,
                     message_type: RpcMessage::ResetRequest,
                     message: Some(m.as_union_value()),
                 },
@@ -424,8 +427,8 @@ impl<const BUF_SIZE: usize> SolarXRClient<BUF_SIZE> {
             RpcMessageHeader::create(
                 &mut fbb,
                 &RpcMessageHeaderArgs {
-                    tx_id: transaction.id,
-                    reply_to: 0,
+                    tx_id: Some(transaction.id),
+                    reply_to: None,
                     message_type: RpcMessage::ResetRequest,
                     message: Some(m.as_union_value()),
                 },
@@ -501,8 +504,8 @@ impl SolarXRClient {
             RpcMessageHeader::create(
                 &mut fbb,
                 &RpcMessageHeaderArgs {
-                    tx_id: transaction.id,
-                    reply_to: 0,
+                    tx_id: Some(transaction.id),
+                    reply_to: None,
                     message_type: RpcMessage::TrackingPauseStateRequest,
                     message: Some(m.as_union_value()),
                 },
@@ -538,8 +541,8 @@ impl SolarXRClient {
             RpcMessageHeader::create(
                 &mut fbb,
                 &RpcMessageHeaderArgs {
-                    tx_id: 0,
-                    reply_to: 0,
+                    tx_id: None,
+                    reply_to: None,
                     message_type: RpcMessage::SetPauseTrackingRequest,
                     message: Some(m.as_union_value()),
                 },
@@ -554,16 +557,16 @@ impl SolarXRClient {
     pub async fn save_stay_aligned_pose(&self, pose: StayAlignedRelaxedPose) -> Result<()> {
         let mut fbb = FlatBufferBuilder::new();
         let m = {
-            let m = DetectStayAlignedRelaxedPoseRequest::create(
+            let m = StartStayAlignedPoseRecordingRequest::create(
                 &mut fbb,
-                &DetectStayAlignedRelaxedPoseRequestArgs { pose },
+                &StartStayAlignedPoseRecordingRequestArgs { pose },
             );
             RpcMessageHeader::create(
                 &mut fbb,
                 &RpcMessageHeaderArgs {
-                    tx_id: 0,
-                    reply_to: 0,
-                    message_type: RpcMessage::DetectStayAlignedRelaxedPoseRequest,
+                    tx_id: None,
+                    reply_to: None,
+                    message_type: RpcMessage::StartStayAlignedPoseRecordingRequest,
                     message: Some(m.as_union_value()),
                 },
             )
@@ -584,8 +587,8 @@ impl SolarXRClient {
             RpcMessageHeader::create(
                 &mut fbb,
                 &RpcMessageHeaderArgs {
-                    tx_id: 0,
-                    reply_to: 0,
+                    tx_id: None,
+                    reply_to: None,
                     message_type: RpcMessage::ResetStayAlignedRelaxedPoseRequest,
                     message: Some(m.as_union_value()),
                 },
@@ -600,16 +603,19 @@ impl SolarXRClient {
     pub async fn set_stay_aligned_enabled(&self, enabled: bool) -> Result<()> {
         let mut fbb = FlatBufferBuilder::new();
         let m = {
-            let m = ChangeStayAlignedEnabledRequest::create(
+            let m = ChangeStayAlignedSettingsRequest::create(
                 &mut fbb,
-                &ChangeStayAlignedEnabledRequestArgs { enabled },
+                &ChangeStayAlignedSettingsRequestArgs {
+                    enabled,
+                    pose_toggles: None,
+                },
             );
             RpcMessageHeader::create(
                 &mut fbb,
                 &RpcMessageHeaderArgs {
-                    tx_id: 0,
-                    reply_to: 0,
-                    message_type: RpcMessage::ChangeStayAlignedEnabledRequest,
+                    tx_id: None,
+                    reply_to: None,
+                    message_type: RpcMessage::ChangeStayAlignedSettingsRequest,
                     message: Some(m.as_union_value()),
                 },
             )
@@ -631,8 +637,8 @@ impl SolarXRClient {
             RpcMessageHeader::create(
                 &mut fbb,
                 &RpcMessageHeaderArgs {
-                    tx_id: transaction.id,
-                    reply_to: 0,
+                    tx_id: Some(transaction.id),
+                    reply_to: None,
                     message_type: RpcMessage::StayAlignedSettingsRequest,
                     message: Some(m.as_union_value()),
                 },
@@ -665,8 +671,8 @@ impl SolarXRClient {
             RpcMessageHeader::create(
                 &mut fbb,
                 &RpcMessageHeaderArgs {
-                    tx_id: transaction.id,
-                    reply_to: 0,
+                    tx_id: Some(transaction.id),
+                    reply_to: None,
                     message_type: RpcMessage::UserHeightRequest,
                     message: Some(m.as_union_value()),
                 },
