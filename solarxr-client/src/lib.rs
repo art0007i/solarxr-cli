@@ -130,15 +130,12 @@ impl<const BUF_SIZE: usize> ClientState<BUF_SIZE> {
         let shared_buf = LazyCell::new(|| Arc::new(buf.to_vec()));
         if let Some(rpc_msgs) = bundle.rpc_msgs() {
             for msg in rpc_msgs {
-                if let Some(tx_id) = msg.tx_id() {
-                    trace!(
-                        "pumped message (transaction {}): {:?}",
-                        tx_id,
-                        msg.message_type()
-                    );
-                } else {
-                    trace!("pumped message: {:?}", msg.message_type());
-                }
+                trace!(
+                    "pumped message (tx_id {:?}, reply_to {:?}): {:?}",
+                    msg.tx_id(),
+                    msg.reply_to(),
+                    msg.message_type()
+                );
 
                 let Some(reply_id) = msg.reply_to() else {
                     continue;
@@ -280,7 +277,7 @@ impl<const BUF_SIZE: usize> SolarXRClient<BUF_SIZE> {
             stream_reader: Mutex::new(stream_reader),
             stream_writer: Mutex::new(stream_writer),
             transactions_state: Arc::new(TransactionsState {
-                transaction_id_counter: AtomicU32::new(1),
+                transaction_id_counter: AtomicU32::new(0),
                 transactions: Mutex::new(HashMap::new()),
             }),
             buf: Mutex::new([0u8; BUF_SIZE]),
